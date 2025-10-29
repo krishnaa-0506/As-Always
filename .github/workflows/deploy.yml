@@ -1,0 +1,173 @@
+name: Deploy AsAlways
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '18.x'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate Prisma client
+      run: npx prisma generate
+
+    - name: Run type checking
+      run: npm run type-check
+
+    - name: Run linting
+      run: npm run lint
+
+    - name: Build application
+      run: npm run build
+      env:
+        DATABASE_URL: "file:./test.db"
+        NEXTAUTH_SECRET: "test-secret-key-for-build"
+        ADMIN_SECRET_CODE: "306206"
+
+  deploy-vercel:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to Vercel
+      uses: vercel/action@v1
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-args: '--prod'
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  deploy-railway:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Railway CLI
+      run: npm install -g @railway/cli
+
+    - name: Deploy to Railway
+      run: railway up --service ${{ secrets.RAILWAY_SERVICE_ID }}
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run security audit
+      run: npm audit --audit-level moderate
+
+    - name: Scan for vulnerabilities with CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript
+        
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  lighthouse:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build application
+      run: npm run build
+      env:
+        DATABASE_URL: "file:./test.db"
+        NEXTAUTH_SECRET: "test-secret-for-lighthouse"
+        ADMIN_SECRET_CODE: "306206"
+
+    - name: Start application
+      run: npm start &
+      env:
+        DATABASE_URL: "file:./test.db"
+        NEXTAUTH_SECRET: "test-secret-for-lighthouse"
+        ADMIN_SECRET_CODE: "306206"
+
+    - name: Wait for application
+      run: sleep 10
+
+    - name: Run Lighthouse
+      uses: treosh/lighthouse-ci-action@v10
+      with:
+        urls: |
+          http://localhost:3000
+          http://localhost:3000/about
+          http://localhost:3000/features
+        uploadArtifacts: true
+        temporaryPublicStorage: true
+
+  notify:
+    needs: [deploy-vercel, deploy-railway]
+    runs-on: ubuntu-latest
+    if: always() && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Notify deployment status
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ needs.deploy-vercel.result == 'success' && needs.deploy-railway.result == 'success' && 'success' || 'failure' }}
+        channel: '#deployments'
+        text: |
+          AsAlways deployment ${{ needs.deploy-vercel.result == 'success' && needs.deploy-railway.result == 'success' && 'succeeded' || 'failed' }}!
+          
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+          
+          Vercel: ${{ needs.deploy-vercel.result }}
+          Railway: ${{ needs.deploy-railway.result }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      if: env.SLACK_WEBHOOK_URL != null

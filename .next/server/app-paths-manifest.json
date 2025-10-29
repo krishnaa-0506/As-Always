@@ -1,0 +1,6 @@
+{
+  "/role-selection/page": "app/role-selection/page.js",
+  "/page": "app/page.js",
+  "/auth/page": "app/auth/page.js",
+  "/api/auth/login/route": "app/api/auth/login/route.js"
+}

@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  name      String?
+  role      Role     @default(SENDER)
+  password  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  
+  @@map("users")
+}
+
+model Message {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  code           String        @unique
+  senderName     String
+  receiverName   String
+  relationship   String
+  receiverGender String
+  emotionTag     String?
+  selectedSong   String?
+  voiceNote      String?
+  textContent    String?
+  status         MessageStatus @default(CREATED)
+  isViewed       Boolean       @default(false)
+  viewedAt       DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  
+  senderId   String? @db.ObjectId
+  receiverId String? @db.ObjectId
+  
+  sender   User? @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User? @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  
+  memories  Memory[]
+  screens   AIScreen[]
+  reactions Reaction[]
+  
+  @@map("messages")
+}
+
+model Memory {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  messageId String     @db.ObjectId
+  type      MemoryType
+  content   String
+  filename  String?
+  caption   String?
+  order     Int
+  createdAt DateTime   @default(now())
+  
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@map("memories")
+}
+
+model AIScreen {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  messageId   String   @db.ObjectId
+  screenIndex Int
+  content     String
+  background  String?
+  animation   String?
+  duration    Int      @default(4000)
+  emotion     String?
+  createdAt   DateTime @default(now())
+  
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@map("screens")
+}
+
+model Reaction {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  messageId String   @db.ObjectId
+  type      String
+  content   String?
+  createdAt DateTime @default(now())
+  
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@map("reactions")
+}
+
+model Template {
+  id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  description   String
+  category      String
+  suitableFor   String[]
+  ageRange      String
+  previewImages String[]
+  layouts       TemplateLayout[]
+  animations    String[]
+  colorSchemes  String[]
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  
+  @@map("templates")
+}
+
+model Theme {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  description  String
+  category     String
+  backgrounds  String[]
+  gradients    String[]
+  colors       ThemeColors
+  fonts        ThemeFonts
+  emotions     String[]
+  mood         String
+  previewImage String
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  
+  @@map("themes")
+}
+
+enum Role {
+  SENDER
+  RECEIVER
+  ADMIN
+}
+
+enum MessageStatus {
+  CREATED
+  GENERATED
+  SENT
+  VIEWED
+  COMPLETED
+}
+
+enum MemoryType {
+  PHOTO
+  VIDEO
+  TEXT
+  VOICE
+}
+
+type TemplateLayout {
+  id        String
+  name      String
+  structure String
+  positions Json
+}
+
+type ThemeColors {
+  primary   String
+  secondary String
+  accent    String
+  text      String
+}
+
+type ThemeFonts {
+  heading String
+  body    String
+}

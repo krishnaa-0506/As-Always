@@ -1,0 +1,13 @@
+{
+  "remove": [
+    "@prisma/client",
+    "prisma"
+  ],
+  "add": [
+    "@tensorflow/tfjs-node": "^4.15.0",
+    "natural": "^6.12.0",
+    "compromise": "^14.10.0",
+    "sentiment": "^5.0.2",
+    "word2vec": "^1.1.1"
+  ]
+}

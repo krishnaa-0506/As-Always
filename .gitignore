@@ -1,0 +1,12 @@
+
+# Security sensitive files
+.env.local
+.env.production
+*.pem
+*.key
+uploads/
+logs/
+temp/
+# API keys and secrets
+secrets.json
+credentials.json
